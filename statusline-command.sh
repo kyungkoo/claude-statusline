@@ -1,5 +1,6 @@
 #!/bin/sh
 input=$(cat)
+echo "$input" > /tmp/statusline-debug.json
 
 cwd=$(echo "$input" | jq -r '.workspace.current_dir // .cwd')
 model=$(echo "$input" | jq -r '.model.display_name // empty')
@@ -55,33 +56,6 @@ if [ -n "$used" ] && [ "$used" != "null" ]; then
   }')
 fi
 
-# Session duration timer
-# Store start time per session_id in ~/.claude/session-times/
-duration_info=""
-if [ -n "$session_id" ]; then
-  times_dir="$HOME/.claude/session-times"
-  mkdir -p "$times_dir"
-  start_file="$times_dir/${session_id}"
-  now=$(date +%s)
-  if [ ! -f "$start_file" ]; then
-    echo "$now" > "$start_file"
-  fi
-  start=$(cat "$start_file")
-  elapsed=$(( now - start ))
-  duration_info=$(awk -v s="$elapsed" 'BEGIN {
-    h = int(s / 3600)
-    m = int((s % 3600) / 60)
-    sec = s % 60
-    total_m = int(s / 60)
-    if (total_m >= 50) color = "\033[31m"
-    else if (total_m >= 30) color = "\033[33m"
-    else color = ""
-    reset = (color != "") ? "\033[0m" : ""
-    if (h > 0) printf "%s\342\217\262\357\270\217 %d:%02d%s", color, h, m, reset
-    else printf "%s\342\217\262\357\270\217 %d:%02d%s", color, m, sec, reset
-  }')
-fi
-
 # Model info: extract family name only (e.g. "Sonnet", "Haiku", "Opus")
 # Display name format is "Claude <Family> <Version> (...)", strip "Claude" prefix then take first word
 model_info=""
@@ -93,9 +67,9 @@ fi
 # Current working directory basename
 cwd_info="📁 $(basename "$cwd")"
 
-# Row 1: duration | cwd | git branch
+# Row 1: cwd | git branch
 row1=""
-for part in "$duration_info" "$cwd_info" "$git_info"; do
+for part in "$cwd_info" "$git_info"; do
   if [ -n "$part" ]; then
     if [ -n "$row1" ]; then
       row1="$row1 | $part"

@@ -79,7 +79,38 @@ for part in "$cwd_info" "$git_info"; do
   fi
 done
 
-# Row 2: model+ctx (no separator between them) | cost
+# Rate limit usage (5h and 7d) with mini progress bars
+rate_info=""
+five_pct=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
+week_pct=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
+make_mini_bar() {
+  awk -v pct="$1" -v label="$2" 'BEGIN {
+    total = 5
+    filled = int(pct / 100 * total + 0.5)
+    if (filled > total) filled = total
+    bar = ""
+    for (i = 0; i < filled; i++) bar = bar "\342\226\210"
+    for (i = filled; i < total; i++) bar = bar "\342\226\221"
+    if (pct >= 80) color = "\033[31m"
+    else if (pct >= 50) color = "\033[33m"
+    else color = ""
+    reset = (color != "") ? "\033[0m" : ""
+    printf "%s %s%s %d%%%s", label, color, bar, pct, reset
+  }'
+}
+if [ -n "$five_pct" ] && [ "$five_pct" != "null" ]; then
+  rate_info=$(make_mini_bar "$five_pct" "5h")
+fi
+if [ -n "$week_pct" ] && [ "$week_pct" != "null" ]; then
+  week_str=$(make_mini_bar "$week_pct" "7d")
+  if [ -n "$rate_info" ]; then
+    rate_info="$rate_info | $week_str"
+  else
+    rate_info="$week_str"
+  fi
+fi
+
+# Row 2: model+ctx | rate limits | cost
 row2=""
 if [ -n "$model_info" ] && [ -n "$ctx_info" ]; then
   row2="$model_info $ctx_info"
@@ -87,6 +118,13 @@ elif [ -n "$model_info" ]; then
   row2="$model_info"
 elif [ -n "$ctx_info" ]; then
   row2="$ctx_info"
+fi
+if [ -n "$rate_info" ]; then
+  if [ -n "$row2" ]; then
+    row2="$row2 | $rate_info"
+  else
+    row2="$rate_info"
+  fi
 fi
 if [ -n "$cost_info" ]; then
   if [ -n "$row2" ]; then
